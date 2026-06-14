@@ -1,0 +1,16 @@
+# Core data + analytics
+pandas>=2.2
+numpy>=1.26
+yfinance>=0.2.40
+
+# Portfolio optimization
+PyPortfolioOpt>=1.5.5
+
+# AI advisor
+anthropic>=0.40
+
+# Config
+python-dotenv>=1.0
+
+# Dashboard
+streamlit>=1.36
