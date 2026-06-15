@@ -37,6 +37,7 @@ if _api_key:
     os.environ["ANTHROPIC_API_KEY"] = _api_key
 
 from src.advanced_metrics import compute_advanced                   # noqa: E402
+from src.attribution import compute_brinson                         # noqa: E402
 from src.advisor import build_briefing_payload, generate_briefing  # noqa: E402
 from src.alerts import check_alerts                                 # noqa: E402
 from src.analyst_note import build_note_payload, generate_note      # noqa: E402
@@ -101,6 +102,7 @@ with st.sidebar:
     show_projection = st.checkbox("Show compounding projection", value=False)
     proj_years = st.slider("Projection horizon (yrs)", 5, 30, 15)
     proj_monthly = st.number_input("Monthly contribution ($)", 0, 50000, 1500, step=500)
+    show_attribution = st.checkbox("Show performance attribution (Brinson)", value=False)
     want_note = st.checkbox("Generate AI analyst note", value=False)
     want_advice = st.checkbox("Generate AI brief (quick)", value=False)
     st.markdown("---")
@@ -143,7 +145,31 @@ with left:
     df = portfolio.to_frame()[
         ["ticker", "shares", "price", "market_value", "unrealized_pl", "weight"]
     ].sort_values("weight", ascending=False)
+
+    # Per-position alpha contribution vs SPY over the selected period
+    _alpha_hist = provider.history(
+        [t for t in portfolio.tickers if t != "CASH"] + ["SPY"], period=period
+    )
+    _spy_pr = (
+        float(_alpha_hist["SPY"].dropna().iloc[-1] / _alpha_hist["SPY"].dropna().iloc[0] - 1)
+        if not _alpha_hist.empty and "SPY" in _alpha_hist.columns
+        else 0.0
+    )
+    def _pos_return(t: str) -> float:
+        if t in _alpha_hist.columns:
+            c = _alpha_hist[t].dropna()
+            if len(c) >= 2:
+                return float(c.iloc[-1] / c.iloc[0] - 1)
+        return float("nan")
+
+    df["period_rtn %"] = df["ticker"].apply(_pos_return) * 100
+    df["alpha_contrib %"] = df.apply(
+        lambda r: r["weight"] * (_pos_return(r["ticker"]) - _spy_pr) * 100
+        if not pd.isna(r["period_rtn %"]) else float("nan"),
+        axis=1,
+    ).round(2)
     df["weight"] = (df["weight"] * 100).round(1)
+    df["period_rtn %"] = df["period_rtn %"].round(1)
     st.dataframe(df, width="stretch", hide_index=True)
 with right:
     st.subheader("Allocation")
@@ -162,18 +188,21 @@ if metrics:
     m5.metric("Max drawdown", f"{metrics.max_drawdown * 100:.1f}%")
     st.line_chart(series, height=240)
 
-    # Institutional-grade extensions: rolling Sharpe, Sortino, Calmar, Beta, IR, VaR
-    adv = compute_advanced(series, provider)
+    # Institutional-grade extensions
+    adv = compute_advanced(series, provider, portfolio_value=portfolio.total_value)
     if adv:
         st.markdown("**Advanced risk metrics**")
         a1, a2, a3, a4, a5 = st.columns(5)
-        a1.metric("Sortino", f"{adv.sortino:.2f}", help="Annual excess return / downside-only vol")
-        a2.metric("Calmar", f"{adv.calmar:.2f}", help="Annual return / |max drawdown|")
+        a1.metric("Sortino", f"{adv.sortino:.2f}",
+                  help="Annual excess return / downside-only vol")
+        a2.metric("Calmar", f"{adv.calmar:.2f}",
+                  help="Annual return / |max drawdown|")
         a3.metric("Beta vs SPY", f"{adv.beta_spy:.2f}",
                   help="Sensitivity to S&P 500 — 1.0 = market-like, >1 = amplified")
         a4.metric("Info Ratio", f"{adv.info_ratio:.2f}",
                   help="Active return vs SPY / tracking error")
-        a5.metric("MTD", f"{adv.mtd_return * 100:+.1f}%")
+        a5.metric("Jensen's α", f"{adv.jensens_alpha * 100:+.1f}%",
+                  help="Excess return above CAPM expectation (R_p − [R_f + β(R_m − R_f)])")
 
         b1, b2, b3, b4, b5 = st.columns(5)
         b1.metric("Rolling Sharpe 30d", f"{adv.rolling_sharpe['30d']:.2f}")
@@ -183,11 +212,27 @@ if metrics:
                   help="Historical 1-day loss exceeded 1% of the time")
         b5.metric("CVaR 99% (1d)", f"{adv.cvar_99_1d * 100:.1f}%",
                   help="Mean loss on the worst 1% of days")
-        st.caption(
-            f"Stress test — if SPY fell 20%, beta implies the book would drop roughly "
-            f"**{adv.stress_spy_minus_20 * 100:.1f}%** "
-            f"(~${portfolio.total_value * adv.stress_spy_minus_20:,.0f}). Linear approximation."
-        )
+
+        c1, _, _, _, c5 = st.columns(5)
+        c1.metric("MTD", f"{adv.mtd_return * 100:+.1f}%")
+
+        if adv.stress_scenarios:
+            st.markdown("**Macro stress scenarios** (beta-linear approximation)")
+            s_rows = [
+                {
+                    "Scenario": sc.name,
+                    "Description": sc.description,
+                    "SPY shock": f"{sc.spy_shock * 100:.0f}%",
+                    "Est. portfolio move": f"{sc.portfolio_pct * 100:+.1f}%",
+                    "Est. P&L": f"${sc.portfolio_dollars:,.0f}",
+                }
+                for sc in adv.stress_scenarios
+            ]
+            st.dataframe(pd.DataFrame(s_rows), hide_index=True, width="stretch")
+            st.caption(
+                "Uses portfolio beta vs SPY; AI Sector Unwind applies 1.5× beta "
+                "to reflect the AI-heavy tilt. Linear approximation only."
+            )
 
 # --- Historical performance chart ---
 st.subheader("Historical performance — all tracked names")
@@ -235,6 +280,62 @@ if not _norm.empty:
             st.dataframe(_ranked, hide_index=True, width="stretch")
 else:
     st.info("No price history available — check your data provider or try a shorter period.")
+
+# --- Brinson attribution ---
+if show_attribution:
+    st.subheader("Performance attribution (Brinson-Fachler)")
+    with st.spinner("Computing attribution — fetching layer returns…"):
+        brinson = compute_brinson(portfolio, provider, period=period)
+    if brinson:
+        bx1, bx2, bx3, bx4 = st.columns(4)
+        bx1.metric(
+            "Portfolio return",
+            f"{brinson.portfolio_return * 100:.1f}%",
+            help=f"Weighted return of held positions ({period})",
+        )
+        bx2.metric(
+            "Benchmark (SPY)",
+            f"{brinson.benchmark_return * 100:.1f}%",
+        )
+        bx3.metric(
+            "Active return",
+            f"{brinson.total_active_return * 100:+.1f}%",
+            help="Portfolio − SPY, decomposed below",
+        )
+        bx4.metric(
+            "Allocation effect",
+            f"{brinson.allocation_effect * 100:+.2f}%",
+            help="Value added by over/underweighting thesis layers vs target",
+        )
+        by1, by2, by3, _ = st.columns(4)
+        by1.metric(
+            "Selection effect",
+            f"{brinson.selection_effect * 100:+.2f}%",
+            help="Value added by stock picks within each layer vs equal-weight layer",
+        )
+        by2.metric(
+            "Interaction effect",
+            f"{brinson.interaction_effect * 100:+.2f}%",
+            help="Joint allocation × selection effect",
+        )
+
+        detail = brinson.by_layer.copy()
+        pct_cols = [
+            "Port. weight", "Target weight", "Active weight",
+            "Port. layer rtn", "Bmk. layer rtn",
+            "Allocation", "Selection", "Interaction", "Total",
+        ]
+        for c in pct_cols:
+            detail[c] = (detail[c] * 100).round(2)
+        with st.expander("Attribution by layer"):
+            st.dataframe(detail, hide_index=True, width="stretch")
+        st.caption(
+            f"Benchmark allocation = thesis target weights; "
+            "layer benchmark = equal-weight of all 46 tracked names per layer. "
+            f"Period: {period}."
+        )
+    else:
+        st.info("Not enough history to compute attribution.")
 
 # --- Alerts ---
 exp = analyze_exposure(portfolio)
