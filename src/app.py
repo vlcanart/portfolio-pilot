@@ -38,6 +38,7 @@ if _api_key:
 
 from src.advanced_metrics import compute_advanced                   # noqa: E402
 from src.attribution import compute_brinson                         # noqa: E402
+from src.directory import build_directory                           # noqa: E402
 from src.advisor import build_briefing_payload, generate_briefing  # noqa: E402
 from src.alerts import check_alerts                                 # noqa: E402
 from src.analyst_note import build_note_payload, generate_note      # noqa: E402
@@ -102,6 +103,7 @@ with st.sidebar:
     show_projection = st.checkbox("Show compounding projection", value=False)
     proj_years = st.slider("Projection horizon (yrs)", 5, 30, 15)
     proj_monthly = st.number_input("Monthly contribution ($)", 0, 50000, 1500, step=500)
+    show_directory = st.checkbox("Show stock directory", value=False)
     show_attribution = st.checkbox("Show performance attribution (Brinson)", value=False)
     want_note = st.checkbox("Generate AI analyst note", value=False)
     want_advice = st.checkbox("Generate AI brief (quick)", value=False)
@@ -282,6 +284,47 @@ if not _norm.empty:
             st.dataframe(_ranked, hide_index=True, width="stretch")
 else:
     st.info("No price history available — check your data provider or try a shorter period.")
+
+# --- Stock directory ---
+if show_directory:
+    st.subheader("Stock directory — all tracked names")
+
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def _fetch_directory(_provider, tickers_key: tuple) -> pd.DataFrame:
+        return build_directory(list(tickers_key), _provider)
+
+    with st.spinner("Fetching company profiles… (cached for 1 hour)"):
+        _dir_tickers = tuple(universe_tickers(portfolio.tickers))
+        _dir_df = _fetch_directory(provider, _dir_tickers)
+
+    if not _dir_df.empty:
+        _layer_opts = ["All layers"] + sorted(_dir_df["Layer"].unique().tolist())
+        _layer_sel = st.selectbox("Filter by layer", _layer_opts, key="dir_layer")
+        _name_filter = st.text_input("Search name / ticker", key="dir_search").strip().lower()
+
+        _view = _dir_df.copy()
+        if _layer_sel != "All layers":
+            _view = _view[_view["Layer"] == _layer_sel]
+        if _name_filter:
+            _view = _view[
+                _view["Ticker"].str.lower().str.contains(_name_filter) |
+                _view["Name"].str.lower().str.contains(_name_filter)
+            ]
+
+        st.dataframe(
+            _view,
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "Business": st.column_config.TextColumn("Business", width="large"),
+                "Upside": st.column_config.TextColumn("Upside", width="small"),
+            },
+        )
+        st.caption(
+            f"{len(_view)} of {len(_dir_df)} names shown. "
+            "Name, sector, business and analyst data from yfinance. "
+            "Target prices and consensus are analyst estimates — not recommendations."
+        )
 
 # --- Brinson attribution ---
 if show_attribution:

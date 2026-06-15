@@ -13,6 +13,12 @@ import pandas as pd
 # Fundamental fields the app expects from any provider's fundamentals().
 FUNDAMENTAL_COLS = ["name", "pe", "rev_growth", "profit_margin", "debt_to_equity", "market_cap"]
 
+# Profile fields returned by company_profile().
+PROFILE_COLS = [
+    "name", "sector", "industry", "summary",
+    "recommendation", "analysts", "target_price", "current_price", "upside",
+]
+
 
 class MarketDataProvider(ABC):
     """Interface every data source must implement."""
@@ -28,6 +34,10 @@ class MarketDataProvider(ABC):
     def fundamentals(self, tickers: list[str]) -> pd.DataFrame:
         """Per-ticker fundamentals indexed by ticker (FUNDAMENTAL_COLS). Best-effort."""
         return pd.DataFrame(columns=FUNDAMENTAL_COLS)
+
+    def company_profile(self, tickers: list[str]) -> pd.DataFrame:
+        """Per-ticker company profiles indexed by ticker (PROFILE_COLS). Best-effort."""
+        return pd.DataFrame(columns=PROFILE_COLS)
 
 
 class YFinanceProvider(MarketDataProvider):
@@ -69,6 +79,34 @@ class YFinanceProvider(MarketDataProvider):
         if isinstance(close, pd.Series):  # single ticker
             close = close.to_frame(name=tickers[0])
         return close.dropna(how="all")
+
+    def company_profile(self, tickers: list[str]) -> pd.DataFrame:
+        """Per-ticker company name, business summary, and analyst outlook via yfinance .info."""
+        rows = []
+        for t in tickers:
+            try:
+                info = self._yf.Ticker(t).info
+            except Exception:
+                info = {}
+            raw = info.get("longBusinessSummary") or ""
+            summary = (raw[:200] + "…") if len(raw) > 200 else raw
+            current = info.get("currentPrice") or info.get("regularMarketPrice")
+            target = info.get("targetMeanPrice")
+            upside = (float(target) / float(current) - 1) if target and current else None
+            rows.append({
+                "ticker": t,
+                "name": info.get("longName") or info.get("shortName", t),
+                "sector": info.get("sector", ""),
+                "industry": info.get("industry", ""),
+                "summary": summary,
+                "recommendation": info.get("recommendationKey", ""),
+                "analysts": info.get("numberOfAnalystOpinions"),
+                "target_price": target,
+                "current_price": current,
+                "upside": upside,
+            })
+        df = pd.DataFrame(rows)
+        return df.set_index("ticker") if not df.empty else pd.DataFrame(columns=PROFILE_COLS)
 
     def fundamentals(self, tickers: list[str]) -> pd.DataFrame:
         """Best-effort fundamentals via yfinance .info (one network call per ticker)."""
