@@ -11,6 +11,12 @@ from __future__ import annotations
 import hmac
 import io
 import os
+import sys
+from pathlib import Path
+
+# Ensure the repo root is importable. Streamlit Cloud runs this file with src/ on the
+# path (not the repo root), so `import src.*` would fail without this.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 import streamlit as st
