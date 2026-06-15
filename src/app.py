@@ -38,7 +38,9 @@ if _api_key:
 
 from src.advisor import build_briefing_payload, generate_briefing  # noqa: E402
 from src.alerts import check_alerts                                 # noqa: E402
+from src.analyst_note import build_note_payload, generate_note      # noqa: E402
 from src.analytics import compute_metrics, portfolio_value_series   # noqa: E402
+from src.history import latest_change, load_history, record_snapshot  # noqa: E402
 from src.config import settings                                     # noqa: E402
 from src.data_provider import get_default_provider                  # noqa: E402
 from src.exposure import analyze_exposure                           # noqa: E402
@@ -95,7 +97,12 @@ with st.sidebar:
     show_projection = st.checkbox("Show compounding projection", value=False)
     proj_years = st.slider("Projection horizon (yrs)", 5, 30, 15)
     proj_monthly = st.number_input("Monthly contribution ($)", 0, 50000, 1500, step=500)
-    want_advice = st.checkbox("Generate AI brief", value=False)
+    want_note = st.checkbox("Generate AI analyst note", value=False)
+    want_advice = st.checkbox("Generate AI brief (quick)", value=False)
+    st.markdown("---")
+    do_snapshot = st.button("📸 Record snapshot")
+    st.caption("Snapshots persist locally. On Streamlit Cloud the filesystem is "
+               "ephemeral, so cloud history resets on reboot.")
 
 
 def _load_holdings_df():
@@ -161,6 +168,21 @@ if alerts:
     _render = {"HIGH": st.error, "WARN": st.warning, "INFO": st.info}
     for a in alerts:
         _render[a.severity](f"**{a.severity}** · {a.category} — {a.message}")
+
+sc = None  # watchlist screen, computed if the monitor is shown
+
+# --- History ---
+if do_snapshot:
+    ts = record_snapshot(portfolio, metrics=metrics, exposure=exp)
+    st.success(f"Snapshot recorded at {ts}.")
+_hist = load_history()
+if len(_hist) > 1:
+    st.subheader("Value history")
+    st.line_chart(_hist.set_index("ts")["total_value"], height=220)
+    chg = latest_change()
+    if chg:
+        st.caption(f"Since {chg['from']}: ${chg['value_change']:,.0f} "
+                   f"({chg['value_change_pct'] * 100:+.1f}%)")
 
 # --- Exposure / thesis gap ---
 st.subheader("Theme exposure vs thesis target")
@@ -255,7 +277,19 @@ if show_projection:
         "Gaussian model understates single-name tail risk. Illustrative, not a forecast."
     )
 
-# --- Advise ---
+# --- AI analyst note ---
+if want_note:
+    st.subheader("AI analyst note")
+    if not settings.anthropic_api_key:
+        st.warning("Set ANTHROPIC_API_KEY in the app secrets to enable the analyst note.")
+    else:
+        with st.spinner("Writing analyst note…"):
+            note_payload = build_note_payload(
+                portfolio, metrics, exp, alerts, watchlist_screen=sc, change=latest_change(),
+            )
+            st.markdown(generate_note(note_payload))
+
+# --- Advise (quick brief) ---
 if want_advice:
     st.subheader("AI rebalancing brief")
     if not settings.anthropic_api_key:

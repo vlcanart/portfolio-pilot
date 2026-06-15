@@ -11,7 +11,9 @@ import sys
 
 from .advisor import build_briefing_payload, generate_briefing
 from .alerts import check_alerts
+from .analyst_note import build_note_payload, generate_note
 from .analytics import compute_metrics, portfolio_value_series
+from .history import latest_change, load_history, record_snapshot
 from .config import settings
 from .data_provider import get_default_provider
 from .exposure import analyze_exposure
@@ -65,6 +67,14 @@ def main() -> None:
     )
     parser.add_argument("--years", type=int, default=10, help="Projection horizon")
     parser.add_argument("--monthly", type=float, default=0.0, help="Monthly contribution ($)")
+    parser.add_argument(
+        "--snapshot", action="store_true",
+        help="Record a point-in-time snapshot to the SQLite history",
+    )
+    parser.add_argument(
+        "--note", action="store_true",
+        help="Generate the recurring AI analyst note (needs ANTHROPIC_API_KEY)",
+    )
     args = parser.parse_args()
 
     provider = get_default_provider()
@@ -114,6 +124,19 @@ def main() -> None:
     if exp.concentration_flag:
         t, w = exp.top_position
         print(f"\n[!] Concentration: {t} is {_fmt_pct(w)} of the account (>25%).")
+
+    sc = None  # watchlist screen, computed on demand below
+
+    # --- Snapshot to history ---
+    if args.snapshot:
+        ts = record_snapshot(portfolio, metrics=metrics, exposure=exp)
+        hist = load_history()
+        print(f"\n{'=' * 56}\nSNAPSHOT RECORDED ({ts})\n{'=' * 56}")
+        print(f"History now holds {len(hist)} snapshot(s).")
+        chg = latest_change()
+        if chg:
+            print(f"Change since {chg['from']}: ${chg['value_change']:,.0f} "
+                  f"({chg['value_change_pct'] * 100:+.1f}%)")
 
     # --- Recommend (target allocation) ---
     target = optimize(portfolio.tickers, provider, objective=args.objective)
@@ -167,6 +190,18 @@ def main() -> None:
         print(f"\nInvested over horizon: ${inv:,.0f}. Returns use a capital-market assumption "
               "(rf + ERP x vol/market_vol); vol from 2y history. Gaussian model understates "
               "single-name tail risk, so it flatters concentration. Illustrative, not a forecast.")
+
+    # --- AI analyst note ---
+    if args.note:
+        if sc is None:
+            sc = screen(provider, load_watchlist(), held=set(portfolio.tickers))
+        payload = build_note_payload(portfolio, metrics, exp, alerts,
+                                     watchlist_screen=sc, change=latest_change())
+        print(f"\n{'=' * 56}\nAI ANALYST NOTE\n{'=' * 56}")
+        try:
+            print(generate_note(payload))
+        except RuntimeError as e:
+            print(f"(skipped) {e}")
 
     # --- Advise (Claude) ---
     if args.advise:

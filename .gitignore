@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .env
 data/holdings.csv
+data/history.db
 .streamlit/secrets.toml
 .cache/
 *.log
