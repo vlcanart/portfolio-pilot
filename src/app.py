@@ -181,11 +181,24 @@ metrics = compute_metrics(series, period=period)
 if metrics:
     st.subheader(f"Performance & risk ({metrics.period})")
     m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Total return", f"{metrics.total_return * 100:.1f}%")
-    m2.metric("Ann. return", f"{metrics.annualized_return * 100:.1f}%")
-    m3.metric("Ann. volatility", f"{metrics.annualized_volatility * 100:.1f}%")
-    m4.metric("Sharpe", f"{metrics.sharpe:.2f}")
-    m5.metric("Max drawdown", f"{metrics.max_drawdown * 100:.1f}%")
+    m1.metric("Total return", f"{metrics.total_return * 100:.1f}%",
+              help="Cumulative gain or loss over the selected window. "
+                   "Context-dependent — compare vs SPY over the same period.")
+    m2.metric("Ann. return", f"{metrics.annualized_return * 100:.1f}%",
+              help="Total return scaled to a yearly rate (CAGR). "
+                   "Green zone: >10% (above long-run S&P average of ~10.5%).")
+    m3.metric("Ann. volatility", f"{metrics.annualized_volatility * 100:.1f}%",
+              help="Std dev of daily returns × √252. Measures how much the portfolio "
+                   "swings around its average. Green zone: <20% for a growth portfolio; "
+                   "SPY typically runs 15–18%.")
+    m4.metric("Sharpe", f"{metrics.sharpe:.2f}",
+              help="(Ann. return − risk-free rate) ÷ ann. volatility. "
+                   "How much return you earn per unit of total risk. "
+                   "Green zone: >1.0 good, >1.5 strong, >2.0 excellent.")
+    m5.metric("Max drawdown", f"{metrics.max_drawdown * 100:.1f}%",
+              help="Largest peak-to-trough decline in the period. "
+                   "The worst-case loss if you bought at the top and sold at the bottom. "
+                   "Green zone: better than −20% for a high-conviction equity portfolio.")
     st.line_chart(series, height=240)
 
     # Institutional-grade extensions
@@ -197,26 +210,62 @@ if metrics:
         st.markdown("**Advanced risk metrics**")
         a1, a2, a3, a4, a5 = st.columns(5)
         a1.metric("Sortino", f"{adv.sortino:.2f}",
-                  help="Annual excess return / downside-only vol")
+                  help="Like Sharpe but only penalises downside volatility (days when you lost money). "
+                       "Better metric for growth portfolios where upside swings are welcome. "
+                       "Formula: (Ann. return − Rf) ÷ downside deviation. "
+                       "Green zone: >1.0 good, >1.5 strong.")
         a2.metric("Calmar", f"{adv.calmar:.2f}",
-                  help="Annual return / |max drawdown|")
+                  help="Ann. return ÷ |max drawdown|. Measures how efficiently the portfolio "
+                       "recovers from its worst loss — used by hedge funds to compare risk-adjusted "
+                       "returns across strategies. "
+                       "Green zone: >0.5 acceptable, >1.0 good, >2.0 excellent.")
         a3.metric("Beta vs SPY", f"{adv.beta_spy:.2f}",
-                  help="Sensitivity to S&P 500 — 1.0 = market-like, >1 = amplified")
+                  help="Sensitivity to S&P 500 moves. Beta 1.0 = moves with the market; "
+                       "1.5 = amplifies SPY moves by 50%. An AI-heavy portfolio typically "
+                       "runs 1.2–1.6. Higher beta = more upside in bull markets, more pain in sell-offs. "
+                       "Green zone depends on your risk appetite — lower is more defensive.")
         a4.metric("Info Ratio", f"{adv.info_ratio:.2f}",
-                  help="Active return vs SPY / tracking error")
+                  help="Active return vs SPY ÷ tracking error. Measures the consistency "
+                       "of outperformance — a high active return that's erratic scores lower "
+                       "than a steady smaller edge. Used by fund managers to evaluate skill. "
+                       "Green zone: >0.3 decent, >0.5 good, >1.0 top-quartile.")
         a5.metric("Jensen's α", f"{adv.jensens_alpha * 100:+.1f}%",
-                  help="Excess return above CAPM expectation (R_p − [R_f + β(R_m − R_f)])")
+                  help="Return above what CAPM predicts given your beta. "
+                       "Formula: R_portfolio − [Rf + β × (R_market − Rf)]. "
+                       "Positive alpha means you earned more than the market compensates "
+                       "you for taking on your level of risk — the holy grail of active management. "
+                       "Green zone: any positive number; >2% annualised is strong.")
 
         b1, b2, b3, b4, b5 = st.columns(5)
-        b1.metric("Rolling Sharpe 30d", f"{adv.rolling_sharpe['30d']:.2f}")
-        b2.metric("Rolling Sharpe 90d", f"{adv.rolling_sharpe['90d']:.2f}")
-        b3.metric("Rolling Sharpe 365d", f"{adv.rolling_sharpe['365d']:.2f}")
+        b1.metric("Rolling Sharpe 30d", f"{adv.rolling_sharpe['30d']:.2f}",
+                  help="Sharpe ratio computed over the trailing 30 trading days only. "
+                       "Short-term signal — noisy but shows current momentum. "
+                       "Green zone: >1.0. Negative = recent returns are risk-adjusted losers.")
+        b2.metric("Rolling Sharpe 90d", f"{adv.rolling_sharpe['90d']:.2f}",
+                  help="Sharpe ratio over the trailing 90 trading days (~4 months). "
+                       "Medium-term signal — smooths out short noise. "
+                       "Useful for spotting regime changes (bull → choppy). "
+                       "Green zone: >1.0.")
+        b3.metric("Rolling Sharpe 365d", f"{adv.rolling_sharpe['365d']:.2f}",
+                  help="Sharpe ratio over the trailing 252 trading days (1 year). "
+                       "Best signal for long-term risk-adjusted quality. "
+                       "Compare 30d vs 365d: if 30d > 365d, recent performance is improving. "
+                       "Green zone: >1.0.")
         b4.metric("VaR 99% (1d)", f"{adv.var_99_1d * 100:.1f}%",
-                  help="Historical 1-day loss exceeded 1% of the time")
+                  help="Value at Risk: the daily loss you would NOT expect to exceed "
+                       "on 99% of trading days, based on historical returns. "
+                       "E.g., −2.5% means 99 days out of 100 you lose less than 2.5% in a day. "
+                       "Green zone: better than −3% for a growth portfolio.")
         b5.metric("CVaR 99% (1d)", f"{adv.cvar_99_1d * 100:.1f}%",
-                  help="Mean loss on the worst 1% of days")
+                  help="Conditional VaR (also called Expected Shortfall): the average loss "
+                       "on the worst 1% of days — the mean of the tail beyond VaR. "
+                       "More conservative than VaR; used by risk managers to size the "
+                       "magnitude of tail events, not just their probability. "
+                       "Green zone: better than −4% (closer to 0 is better).")
 
-        st.metric("MTD", f"{adv.mtd_return * 100:+.1f}%")
+        st.metric("MTD", f"{adv.mtd_return * 100:+.1f}%",
+                  help="Month-to-date return: portfolio gain/loss from the 1st of the current month. "
+                       "Quick pulse check. Green zone: positive, and above SPY MTD.")
 
         if adv.stress_scenarios:
             st.markdown("**Macro stress scenarios** (beta-linear approximation)")
@@ -232,9 +281,43 @@ if metrics:
             ]
             st.dataframe(pd.DataFrame(s_rows), hide_index=True, width="stretch")
             st.caption(
-                "Uses portfolio beta vs SPY; AI Sector Unwind applies 1.5× beta "
-                "to reflect the AI-heavy tilt. Linear approximation only."
+                "Estimated impact = portfolio beta × assumed SPY shock. "
+                "AI Sector Unwind applies 1.5× beta to reflect the AI-heavy tilt. "
+                "Linear approximation only — actual losses in a crisis are typically larger."
             )
+
+        with st.expander("📚 Metric glossary & green zones"):
+            st.markdown("""
+| Metric | What it measures | Formula | Green zone |
+|---|---|---|---|
+| **Total return** | Cumulative gain/loss over the window | (End value − Start value) / Start value | Positive; above SPY same period |
+| **Ann. return** | Yearly growth rate (CAGR) | (1 + total return)^(252/days) − 1 | > 10% |
+| **Ann. volatility** | How much the portfolio swings | Std dev of daily returns × √252 | < 20% |
+| **Sharpe ratio** | Return earned per unit of total risk | (Ann. return − Rf) / Ann. volatility | > 1.0 good · > 1.5 strong · > 2.0 excellent |
+| **Max drawdown** | Worst peak-to-trough loss | Min(cumulative drawdown series) | Better than −20% |
+| **Sortino ratio** | Return per unit of *downside* risk only | (Ann. return − Rf) / Downside deviation | > 1.0 good · > 1.5 strong |
+| **Calmar ratio** | Return efficiency vs worst-case loss | Ann. return / \|Max drawdown\| | > 0.5 acceptable · > 1.0 good |
+| **Beta vs SPY** | Market sensitivity | Cov(portfolio, SPY) / Var(SPY) | Depends on risk appetite; AI portfolios typically 1.2–1.6 |
+| **Information ratio** | Consistency of outperformance vs SPY | Active return / Tracking error | > 0.3 decent · > 0.5 good · > 1.0 top-quartile |
+| **Jensen's alpha** | Return above CAPM expectation | R_p − [Rf + β(R_m − Rf)] | Any positive number; > 2% annualised is strong |
+| **Rolling Sharpe 30d** | Short-term risk-adjusted momentum | Sharpe on trailing 30 trading days | > 1.0 |
+| **Rolling Sharpe 90d** | Medium-term risk-adjusted quality | Sharpe on trailing 90 trading days | > 1.0 |
+| **Rolling Sharpe 365d** | Long-term risk-adjusted quality | Sharpe on trailing 252 trading days | > 1.0 |
+| **VaR 99% (1d)** | Typical worst-day loss (1-in-100 days) | 1st percentile of daily return history | Better than −3% |
+| **CVaR 99% (1d)** | Average loss on the worst 1% of days | Mean of returns below VaR threshold | Better than −4% (closer to 0) |
+| **MTD** | Month-to-date return | (Today − Month start) / Month start | Positive; above SPY MTD |
+| **Alpha contrib %** | Per-position contribution to active return | Position weight × (position return − SPY return) | Positive = that position is beating SPY on a weighted basis |
+| **Period return %** | Position return over the selected window | (End price − Start price) / Start price | Positive; above SPY same period |
+
+**Key relationships to watch:**
+- **Sharpe vs Sortino**: If Sortino >> Sharpe, your volatility is mostly upside — a good sign.
+- **Rolling Sharpe trends**: Rising 30d vs flat 365d = improving momentum. Falling 30d = recent headwinds.
+- **Beta + Stress scenarios**: High beta amplifies both gains and losses. Know your dollar exposure before a sell-off.
+- **Jensen's alpha vs Info Ratio**: Alpha says you outperformed CAPM; IR says how *consistently*. You want both positive.
+- **Brinson attribution**: Allocation effect tells you if your layer sizing added value; selection tells you if your stock picks within each layer were right.
+
+*All metrics use the portfolio's daily value series derived from your holdings × live prices. Risk-free rate is configurable in settings (default 5%). Past metrics do not predict future performance.*
+""")  # noqa: E501
 
 # --- Historical performance chart ---
 st.subheader("Historical performance — all tracked names")
