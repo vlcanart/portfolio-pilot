@@ -25,10 +25,13 @@ def screen(
     watchlist: pd.DataFrame,
     held: set[str] | None = None,
     pullback_threshold: float = -0.15,
+    with_fundamentals: bool = False,
 ) -> pd.DataFrame:
     """Return a ranked screen with momentum + a pullback entry flag.
 
     `pullback_threshold` (e.g. -0.15) flags names trading >=15% below their 1y high.
+    `with_fundamentals=True` merges P/E, revenue growth, and margin (slower — one call
+    per name).
     """
     held = held or set()
     tickers = watchlist["ticker"].tolist()
@@ -65,4 +68,13 @@ def screen(
     df = pd.DataFrame(rows)
     if df.empty:
         return df
+
+    if with_fundamentals:
+        fund = provider.fundamentals(df["ticker"].tolist())
+        if not fund.empty:
+            df = df.merge(
+                fund[["pe", "rev_growth", "profit_margin"]],
+                left_on="ticker", right_index=True, how="left",
+            )
+
     return df.sort_values("6M", ascending=False, na_position="last").reset_index(drop=True)

@@ -90,6 +90,23 @@ def plan_rebalance(
     return orders
 
 
+def resulting_weights(portfolio: Portfolio, orders: list[Order]) -> dict[str, float]:
+    """Apply the planned orders to current holdings and return the post-rebalance weights."""
+    mv: dict[str, float] = {p.ticker: p.market_value for p in portfolio.positions}
+    for o in orders:
+        if o.shares <= 0 or o.ticker.startswith("("):
+            continue  # skip informational placeholders (e.g. "(no candidate)")
+        if o.action == "SELL":
+            mv[o.ticker] = mv.get(o.ticker, 0.0) - o.dollars
+        elif o.action == "BUY":
+            mv[o.ticker] = mv.get(o.ticker, 0.0) + o.dollars
+        elif o.action == "DEPLOY_CASH":
+            mv["CASH"] = mv.get("CASH", 0.0) - o.dollars
+    mv = {t: max(v, 0.0) for t, v in mv.items()}
+    total = sum(mv.values()) or 1.0
+    return {t: v / total for t, v in mv.items() if v > 0}
+
+
 def summarize(orders: list[Order]) -> dict[str, float]:
     sells = sum(o.dollars for o in orders if o.action == "SELL")
     buys = sum(o.dollars for o in orders if o.action == "BUY")

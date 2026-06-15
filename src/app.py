@@ -43,7 +43,8 @@ from src.data_provider import get_default_provider                  # noqa: E402
 from src.exposure import analyze_exposure                           # noqa: E402
 from src.optimizer import optimize                                  # noqa: E402
 from src.portfolio import build_portfolio, load_holdings            # noqa: E402
-from src.rebalance import plan_rebalance, summarize                 # noqa: E402
+from src.projections import compare as project_compare             # noqa: E402
+from src.rebalance import plan_rebalance, resulting_weights, summarize  # noqa: E402
 from src.watchlist import load_watchlist, screen                    # noqa: E402
 
 st.set_page_config(page_title="Portfolio Pilot", layout="wide")
@@ -89,6 +90,10 @@ with st.sidebar:
     objective = st.selectbox("Optimizer objective", ["max_sharpe", "min_volatility"])
     max_weight = st.slider("Max weight per position (optimizer)", 0.10, 1.0, 0.30, 0.05)
     show_watchlist = st.checkbox("Show thesis watchlist monitor", value=False)
+    wl_fundamentals = st.checkbox("…with fundamentals (slower)", value=False)
+    show_projection = st.checkbox("Show compounding projection", value=False)
+    proj_years = st.slider("Projection horizon (yrs)", 5, 30, 15)
+    proj_monthly = st.number_input("Monthly contribution ($)", 0, 50000, 1500, step=500)
     want_advice = st.checkbox("Generate AI brief", value=False)
 
 
@@ -198,7 +203,8 @@ if target:
 if show_watchlist:
     st.subheader("Thesis watchlist monitor")
     with st.spinner("Loading live watchlist…"):
-        sc = screen(provider, load_watchlist(), held=set(portfolio.tickers))
+        sc = screen(provider, load_watchlist(), held=set(portfolio.tickers),
+                    with_fundamentals=wl_fundamentals)
     if not sc.empty:
         disp = sc.copy()
         for c in ["1M", "3M", "6M", "from_1y_high"]:
@@ -207,6 +213,36 @@ if show_watchlist:
         pulls = sc[sc["signal"] == "pullback"]["ticker"].tolist()
         if pulls:
             st.caption("Pullback (>15% off 1y high) — possible entry points: " + ", ".join(pulls))
+
+# --- Compounding projection ---
+if show_projection:
+    st.subheader(f"Compounding projection — {proj_years}yr, +${proj_monthly:,.0f}/mo")
+    with st.spinner("Running Monte-Carlo…"):
+        target_w = resulting_weights(portfolio, orders)
+        res = project_compare(portfolio.weights, target_w, provider,
+                              portfolio.total_value, years=proj_years,
+                              monthly_contribution=float(proj_monthly))
+    rows = []
+    for label, r in [("Current", res["current"]), ("Rebalanced", res["target"])]:
+        rows.append({
+            "Allocation": label,
+            "Exp. return": f"{r['ann_return'] * 100:.0f}%",
+            "Volatility": f"{r['ann_vol'] * 100:.0f}%",
+            "p10": f"${r['terminal_p10']:,.0f}",
+            "Median": f"${r['terminal_p50']:,.0f}",
+            "p90": f"${r['terminal_p90']:,.0f}",
+        })
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    paths = pd.DataFrame({
+        "Current (median)": res["current"]["path"]["p50"],
+        "Rebalanced (median)": res["target"]["path"]["p50"],
+    })
+    st.line_chart(paths, height=240)
+    st.caption(
+        f"Invested over horizon: ${res['current']['invested']:,.0f}. Returns use a "
+        "capital-market assumption (rf + ERP×vol/market); volatility from 2y history. "
+        "Gaussian model understates single-name tail risk. Illustrative, not a forecast."
+    )
 
 # --- Advise ---
 if want_advice:

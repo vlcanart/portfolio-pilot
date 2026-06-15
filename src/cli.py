@@ -16,7 +16,8 @@ from .data_provider import get_default_provider
 from .exposure import analyze_exposure
 from .optimizer import optimize
 from .portfolio import build_portfolio, load_holdings
-from .rebalance import plan_rebalance, summarize
+from .projections import compare as project_compare
+from .rebalance import plan_rebalance, resulting_weights, summarize
 from .watchlist import load_watchlist, screen
 
 
@@ -53,6 +54,16 @@ def main() -> None:
         "--screen", action="store_true",
         help="Print the live thesis watchlist monitor",
     )
+    parser.add_argument(
+        "--fundamentals", action="store_true",
+        help="Include P/E, revenue growth, margin in the watchlist (slower)",
+    )
+    parser.add_argument(
+        "--project", action="store_true",
+        help="Monte-Carlo compounding projection: current vs post-rebalance allocation",
+    )
+    parser.add_argument("--years", type=int, default=10, help="Projection horizon")
+    parser.add_argument("--monthly", type=float, default=0.0, help="Monthly contribution ($)")
     args = parser.parse_args()
 
     provider = get_default_provider()
@@ -118,7 +129,8 @@ def main() -> None:
     # --- Watchlist monitor ---
     if args.screen:
         wl = load_watchlist()
-        sc = screen(provider, wl, held=set(portfolio.tickers))
+        sc = screen(provider, wl, held=set(portfolio.tickers),
+                    with_fundamentals=args.fundamentals)
         print(f"\n{'=' * 56}\nTHESIS WATCHLIST MONITOR\n{'=' * 56}")
         disp = sc.copy()
         for c in ["1M", "3M", "6M", "from_1y_high"]:
@@ -127,6 +139,24 @@ def main() -> None:
         flags = sc[sc["signal"] == "pullback"]["ticker"].tolist()
         if flags:
             print(f"\nPullback (>15% off 1y high): {', '.join(flags)}")
+
+    # --- Compounding projection ---
+    if args.project:
+        current_w = portfolio.weights
+        target_w = resulting_weights(portfolio, plan_rebalance(portfolio, provider))
+        res = project_compare(current_w, target_w, provider, portfolio.total_value,
+                              years=args.years, monthly_contribution=args.monthly)
+        print(f"\n{'=' * 64}\nCOMPOUNDING PROJECTION — {args.years}yr"
+              f"{f', +${args.monthly:,.0f}/mo' if args.monthly else ''}\n{'=' * 64}")
+        print(f"{'Allocation':<14}{'Ret/Vol':>14}{'p10':>14}{'p50 (median)':>16}{'p90':>14}")
+        for label, r in [("Current", res["current"]), ("Rebalanced", res["target"])]:
+            rv = f"{r['ann_return']*100:.0f}%/{r['ann_vol']*100:.0f}%"
+            print(f"{label:<14}{rv:>14}{r['terminal_p10']:>14,.0f}"
+                  f"{r['terminal_p50']:>16,.0f}{r['terminal_p90']:>14,.0f}")
+        inv = res["current"]["invested"]
+        print(f"\nInvested over horizon: ${inv:,.0f}. Returns use a capital-market assumption "
+              "(rf + ERP x vol/market_vol); vol from 2y history. Gaussian model understates "
+              "single-name tail risk, so it flatters concentration. Illustrative, not a forecast.")
 
     # --- Advise (Claude) ---
     if args.advise:
