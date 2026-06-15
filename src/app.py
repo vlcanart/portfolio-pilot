@@ -43,6 +43,8 @@ from src.data_provider import get_default_provider                  # noqa: E402
 from src.exposure import analyze_exposure                           # noqa: E402
 from src.optimizer import optimize                                  # noqa: E402
 from src.portfolio import build_portfolio, load_holdings            # noqa: E402
+from src.rebalance import plan_rebalance, summarize                 # noqa: E402
+from src.watchlist import load_watchlist, screen                    # noqa: E402
 
 st.set_page_config(page_title="Portfolio Pilot", layout="wide")
 
@@ -86,6 +88,7 @@ with st.sidebar:
     period = st.selectbox("History window", ["6mo", "1y", "2y", "5y"], index=1)
     objective = st.selectbox("Optimizer objective", ["max_sharpe", "min_volatility"])
     max_weight = st.slider("Max weight per position (optimizer)", 0.10, 1.0, 0.30, 0.05)
+    show_watchlist = st.checkbox("Show thesis watchlist monitor", value=False)
     want_advice = st.checkbox("Generate AI brief", value=False)
 
 
@@ -157,6 +160,23 @@ st.dataframe(
 )
 st.caption("Gap = current − target (positive = overweight vs thesis, negative = underweight).")
 
+# --- Rebalance plan ---
+st.subheader("Rebalance plan → thesis target")
+orders = plan_rebalance(portfolio, provider)
+s = summarize(orders)
+od = pd.DataFrame([o.__dict__ for o in orders])
+if not od.empty:
+    od["shares"] = od["shares"].round(1)
+    od["dollars"] = od["dollars"].round(0)
+    st.dataframe(
+        od[["action", "ticker", "shares", "dollars", "layer", "reason"]],
+        width="stretch", hide_index=True,
+    )
+    st.caption(
+        f"Sell ${s['sell_total']:,.0f} + deploy ${s['cash_deployed']:,.0f} cash → "
+        f"buy ${s['buy_total']:,.0f}. Tax-free rebalance (IRA). Sizes are starting points, not targets."
+    )
+
 # --- Recommend ---
 target = optimize(portfolio.tickers, provider, objective=objective, max_weight=max_weight)
 if target:
@@ -173,6 +193,20 @@ if target:
         f"Vol {target.annual_volatility * 100:.1f}% · Sharpe {target.sharpe:.2f} · "
         "expected return is extrapolated from history — treat as directional, not a forecast."
     )
+
+# --- Thesis watchlist monitor ---
+if show_watchlist:
+    st.subheader("Thesis watchlist monitor")
+    with st.spinner("Loading live watchlist…"):
+        sc = screen(provider, load_watchlist(), held=set(portfolio.tickers))
+    if not sc.empty:
+        disp = sc.copy()
+        for c in ["1M", "3M", "6M", "from_1y_high"]:
+            disp[c] = (disp[c] * 100).round(1)
+        st.dataframe(disp, width="stretch", hide_index=True)
+        pulls = sc[sc["signal"] == "pullback"]["ticker"].tolist()
+        if pulls:
+            st.caption("Pullback (>15% off 1y high) — possible entry points: " + ", ".join(pulls))
 
 # --- Advise ---
 if want_advice:

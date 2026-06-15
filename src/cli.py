@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 
 from .advisor import build_briefing_payload, generate_briefing
 from .analytics import compute_metrics, portfolio_value_series
@@ -15,6 +16,8 @@ from .data_provider import get_default_provider
 from .exposure import analyze_exposure
 from .optimizer import optimize
 from .portfolio import build_portfolio, load_holdings
+from .rebalance import plan_rebalance, summarize
+from .watchlist import load_watchlist, screen
 
 
 def _fmt_pct(x: float) -> str:
@@ -22,6 +25,12 @@ def _fmt_pct(x: float) -> str:
 
 
 def main() -> None:
+    # Windows consoles default to cp1252; force UTF-8 so symbols/arrows don't crash.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
     parser = argparse.ArgumentParser(description="Portfolio Pilot")
     parser.add_argument("--holdings", required=True, help="Path to holdings CSV")
     parser.add_argument("--period", default="1y", help="History window (e.g. 6mo, 1y, 2y)")
@@ -35,6 +44,14 @@ def main() -> None:
         "--advise",
         action="store_true",
         help="Also generate a Claude rebalancing brief (needs ANTHROPIC_API_KEY)",
+    )
+    parser.add_argument(
+        "--rebalance", action="store_true",
+        help="Print concrete buy/sell orders to move toward the thesis target",
+    )
+    parser.add_argument(
+        "--screen", action="store_true",
+        help="Print the live thesis watchlist monitor",
     )
     args = parser.parse_args()
 
@@ -75,7 +92,7 @@ def main() -> None:
               f"{r['gap'] * 100:>+7.1f}%")
     if exp.concentration_flag:
         t, w = exp.top_position
-        print(f"\n⚠️  Concentration: {t} is {_fmt_pct(w)} of the account (>25%).")
+        print(f"\n[!] Concentration: {t} is {_fmt_pct(w)} of the account (>25%).")
 
     # --- Recommend (target allocation) ---
     target = optimize(portfolio.tickers, provider, objective=args.objective)
@@ -85,6 +102,31 @@ def main() -> None:
             print(f"{t:<8}{_fmt_pct(w):>10}")
         print(f"\nExpected return: {_fmt_pct(target.expected_annual_return)}  "
               f"Vol: {_fmt_pct(target.annual_volatility)}  Sharpe: {target.sharpe:.2f}")
+
+    # --- Rebalance planner ---
+    if args.rebalance:
+        orders = plan_rebalance(portfolio, provider)
+        s = summarize(orders)
+        print(f"\n{'=' * 56}\nREBALANCE PLAN → thesis target\n{'=' * 56}")
+        print(f"{'Action':<12}{'Ticker':<10}{'Shares':>10}{'$ Amount':>14}  Layer")
+        for o in sorted(orders, key=lambda x: (x.action, -x.dollars)):
+            print(f"{o.action:<12}{o.ticker:<10}{o.shares:>10,.1f}{o.dollars:>14,.0f}  {o.layer}")
+        print(f"\nSell ${s['sell_total']:,.0f} + deploy ${s['cash_deployed']:,.0f} cash "
+              f"→ buy ${s['buy_total']:,.0f}  (net ${s['net']:,.0f})")
+        print("Tax-free rebalance (IRA). Sizes are starting points, not targets.")
+
+    # --- Watchlist monitor ---
+    if args.screen:
+        wl = load_watchlist()
+        sc = screen(provider, wl, held=set(portfolio.tickers))
+        print(f"\n{'=' * 56}\nTHESIS WATCHLIST MONITOR\n{'=' * 56}")
+        disp = sc.copy()
+        for c in ["1M", "3M", "6M", "from_1y_high"]:
+            disp[c] = (disp[c] * 100).round(1)
+        print(disp.to_string(index=False))
+        flags = sc[sc["signal"] == "pullback"]["ticker"].tolist()
+        if flags:
+            print(f"\nPullback (>15% off 1y high): {', '.join(flags)}")
 
     # --- Advise (Claude) ---
     if args.advise:
