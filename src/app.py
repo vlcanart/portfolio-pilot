@@ -213,8 +213,7 @@ if metrics:
         b5.metric("CVaR 99% (1d)", f"{adv.cvar_99_1d * 100:.1f}%",
                   help="Mean loss on the worst 1% of days")
 
-        c1, _, _, _, c5 = st.columns(5)
-        c1.metric("MTD", f"{adv.mtd_return * 100:+.1f}%")
+        st.metric("MTD", f"{adv.mtd_return * 100:+.1f}%")
 
         if adv.stress_scenarios:
             st.markdown("**Macro stress scenarios** (beta-linear approximation)")
