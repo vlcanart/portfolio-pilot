@@ -1,0 +1,27 @@
+ticker,name,layer,note
+NVDA,NVIDIA,Compute & Semis,Compute layer monopolist
+AVGO,Broadcom,Compute & Semis,Custom ASIC & networking
+TSM,Taiwan Semiconductor,Compute & Semis,Foundry monopoly
+MRVL,Marvell,Compute & Semis,Custom silicon
+MU,Micron,Compute & Semis,High-bandwidth memory (HBM)
+SMH,VanEck Semiconductor ETF,Compute & Semis,Semis ballast ETF
+GLW,Corning,Compute & Semis,Optical / glass substrates (HELD)
+MSFT,Microsoft,Software & Platforms,Enterprise agent cloud
+GOOGL,Alphabet,Software & Platforms,Sovereign agent & cloud
+META,Meta Platforms,Software & Platforms,Open-source AI utility
+AMZN,Amazon,Software & Platforms,AWS infrastructure
+PLTR,Palantir,Software & Platforms,Agentic operating system
+NOW,ServiceNow,Software & Platforms,B2B automation
+CRM,Salesforce,Software & Platforms,System of record / Agentforce
+CEG,Constellation Energy,AI Power & Infra,Nuclear power pure-play
+VST,Vistra,AI Power & Infra,Independent power producer
+GEV,GE Vernova,AI Power & Infra,Grid & gas turbine monopoly
+VRT,Vertiv,AI Power & Infra,Liquid cooling / datacenter infra
+ANET,Arista Networks,AI Power & Infra,Datacenter switching
+CCJ,Cameco,AI Power & Infra,Uranium fuel cycle
+TSLA,Tesla,Robotics,Humanoid (Optimus) (HELD)
+SYM,Symbotic,Robotics,Warehouse AI fleets
+TER,Teradyne,Robotics,Cobots / automation
+COPX,Global X Copper Miners,Materials & Critical Minerals,Copper for AI power buildout (HELD)
+GNR,SPDR Natural Resources,Materials & Critical Minerals,Broad natural resources (HELD)
+MP,MP Materials,Materials & Critical Minerals,Rare earth magnets

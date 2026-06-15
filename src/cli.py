@@ -12,6 +12,7 @@ from .advisor import build_briefing_payload, generate_briefing
 from .analytics import compute_metrics, portfolio_value_series
 from .config import settings
 from .data_provider import get_default_provider
+from .exposure import analyze_exposure
 from .optimizer import optimize
 from .portfolio import build_portfolio, load_holdings
 
@@ -64,6 +65,17 @@ def main() -> None:
         print(f"Annualized vol:      {_fmt_pct(metrics.annualized_volatility)}")
         print(f"Sharpe (rf={settings.risk_free_rate:.1%}):    {metrics.sharpe:.2f}")
         print(f"Max drawdown:        {_fmt_pct(metrics.max_drawdown)}")
+
+    # --- Exposure / thesis gap ---
+    exp = analyze_exposure(portfolio)
+    print(f"\n{'=' * 56}\nTHEME EXPOSURE vs THESIS TARGET\n{'=' * 56}")
+    print(f"{'Layer':<32}{'Current':>9}{'Target':>9}{'Gap':>8}")
+    for layer, r in exp.by_layer.iterrows():
+        print(f"{layer:<32}{_fmt_pct(r['current']):>9}{_fmt_pct(r['target']):>9}"
+              f"{r['gap'] * 100:>+7.1f}%")
+    if exp.concentration_flag:
+        t, w = exp.top_position
+        print(f"\n⚠️  Concentration: {t} is {_fmt_pct(w)} of the account (>25%).")
 
     # --- Recommend (target allocation) ---
     target = optimize(portfolio.tickers, provider, objective=args.objective)

@@ -40,6 +40,7 @@ from src.advisor import build_briefing_payload, generate_briefing  # noqa: E402
 from src.analytics import compute_metrics, portfolio_value_series   # noqa: E402
 from src.config import settings                                     # noqa: E402
 from src.data_provider import get_default_provider                  # noqa: E402
+from src.exposure import analyze_exposure                           # noqa: E402
 from src.optimizer import optimize                                  # noqa: E402
 from src.portfolio import build_portfolio, load_holdings            # noqa: E402
 
@@ -140,6 +141,21 @@ if metrics:
     m4.metric("Sharpe", f"{metrics.sharpe:.2f}")
     m5.metric("Max drawdown", f"{metrics.max_drawdown * 100:.1f}%")
     st.line_chart(series, height=240)
+
+# --- Exposure / thesis gap ---
+exp = analyze_exposure(portfolio)
+st.subheader("Theme exposure vs thesis target")
+if exp.concentration_flag:
+    t, w = exp.top_position
+    st.warning(f"Concentration risk: **{t}** is {w * 100:.0f}% of the account (>25%).")
+ex_df = exp.by_layer.copy()
+ex_df.columns = ["Current", "Target", "Gap"]
+st.bar_chart(ex_df[["Current", "Target"]])
+st.dataframe(
+    (ex_df * 100).round(1).rename(columns=lambda c: f"{c} %"),
+    width="stretch",
+)
+st.caption("Gap = current − target (positive = overweight vs thesis, negative = underweight).")
 
 # --- Recommend ---
 target = optimize(portfolio.tickers, provider, objective=objective, max_weight=max_weight)
