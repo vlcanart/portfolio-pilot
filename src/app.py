@@ -36,6 +36,7 @@ _api_key = _secret("ANTHROPIC_API_KEY")
 if _api_key:
     os.environ["ANTHROPIC_API_KEY"] = _api_key
 
+from src.advanced_metrics import compute_advanced                   # noqa: E402
 from src.advisor import build_briefing_payload, generate_briefing  # noqa: E402
 from src.alerts import check_alerts                                 # noqa: E402
 from src.analyst_note import build_note_payload, generate_note      # noqa: E402
@@ -44,6 +45,9 @@ from src.history import latest_change, load_history, record_snapshot  # noqa: E4
 from src.config import settings                                     # noqa: E402
 from src.data_provider import get_default_provider                  # noqa: E402
 from src.exposure import analyze_exposure                           # noqa: E402
+from src.perf_chart import (                                        # noqa: E402
+    normalized_history, rank_by_total_return, universe_tickers,
+)
 from src.optimizer import optimize                                  # noqa: E402
 from src.portfolio import build_portfolio, load_holdings            # noqa: E402
 from src.projections import compare as project_compare             # noqa: E402
@@ -157,6 +161,80 @@ if metrics:
     m4.metric("Sharpe", f"{metrics.sharpe:.2f}")
     m5.metric("Max drawdown", f"{metrics.max_drawdown * 100:.1f}%")
     st.line_chart(series, height=240)
+
+    # Institutional-grade extensions: rolling Sharpe, Sortino, Calmar, Beta, IR, VaR
+    adv = compute_advanced(series, provider)
+    if adv:
+        st.markdown("**Advanced risk metrics**")
+        a1, a2, a3, a4, a5 = st.columns(5)
+        a1.metric("Sortino", f"{adv.sortino:.2f}", help="Annual excess return / downside-only vol")
+        a2.metric("Calmar", f"{adv.calmar:.2f}", help="Annual return / |max drawdown|")
+        a3.metric("Beta vs SPY", f"{adv.beta_spy:.2f}",
+                  help="Sensitivity to S&P 500 — 1.0 = market-like, >1 = amplified")
+        a4.metric("Info Ratio", f"{adv.info_ratio:.2f}",
+                  help="Active return vs SPY / tracking error")
+        a5.metric("MTD", f"{adv.mtd_return * 100:+.1f}%")
+
+        b1, b2, b3, b4, b5 = st.columns(5)
+        b1.metric("Rolling Sharpe 30d", f"{adv.rolling_sharpe['30d']:.2f}")
+        b2.metric("Rolling Sharpe 90d", f"{adv.rolling_sharpe['90d']:.2f}")
+        b3.metric("Rolling Sharpe 365d", f"{adv.rolling_sharpe['365d']:.2f}")
+        b4.metric("VaR 99% (1d)", f"{adv.var_99_1d * 100:.1f}%",
+                  help="Historical 1-day loss exceeded 1% of the time")
+        b5.metric("CVaR 99% (1d)", f"{adv.cvar_99_1d * 100:.1f}%",
+                  help="Mean loss on the worst 1% of days")
+        st.caption(
+            f"Stress test — if SPY fell 20%, beta implies the book would drop roughly "
+            f"**{adv.stress_spy_minus_20 * 100:.1f}%** "
+            f"(~${portfolio.total_value * adv.stress_spy_minus_20:,.0f}). Linear approximation."
+        )
+
+# --- Historical performance chart ---
+st.subheader("Historical performance — all tracked names")
+_perf_col1, _perf_col2, _perf_col3 = st.columns([2, 2, 4])
+with _perf_col1:
+    perf_period = st.selectbox("Period", ["1y", "2y", "3y", "5y"], index=3,
+                               key="perf_period")
+with _perf_col2:
+    perf_gran = st.radio("Granularity", ["daily", "monthly", "yearly"],
+                         index=1, horizontal=True, key="perf_gran")
+with _perf_col3:
+    show_benchmark = st.checkbox("Show SPY benchmark", value=True, key="perf_spy")
+
+with st.spinner("Loading history for all tracked names…"):
+    _uni = universe_tickers(portfolio.tickers)
+    _bench = "SPY" if show_benchmark else None
+    _norm = normalized_history(provider, _uni, period=perf_period,
+                               granularity=perf_gran, benchmark=_bench)
+
+if not _norm.empty:
+    _all_names = sorted(_norm.columns.tolist())
+    _default = (
+        [t for t in portfolio.tickers if t != "CASH" and t in _norm.columns]
+        + (["SPY"] if show_benchmark and "SPY" in _norm.columns else [])
+    )
+    _sel = st.multiselect(
+        "Filter names (leave blank = show all)",
+        options=_all_names,
+        default=_default,
+        key="perf_sel",
+    )
+    _chart_df = _norm[_sel] if _sel else _norm
+    st.line_chart(_chart_df, height=380)
+    st.caption(
+        "Normalized to 100 at first data point. "
+        f"{perf_gran.capitalize()} closes, {perf_period} window. "
+        "Includes held positions + 46-name Agentic Economy watchlist."
+    )
+
+    _ranked = rank_by_total_return(_norm[_sel] if _sel else _norm)
+    if not _ranked.empty:
+        _ranked["total_return"] = (_ranked["total_return"] * 100).round(1)
+        _ranked.columns = ["Ticker", "Total return (%)"]
+        with st.expander("Return ranking over selected window"):
+            st.dataframe(_ranked, hide_index=True, width="stretch")
+else:
+    st.info("No price history available — check your data provider or try a shorter period.")
 
 # --- Alerts ---
 exp = analyze_exposure(portfolio)
