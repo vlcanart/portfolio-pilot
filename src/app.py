@@ -103,8 +103,6 @@ with st.sidebar:
     show_projection = st.checkbox("Show compounding projection", value=False)
     proj_years = st.slider("Projection horizon (yrs)", 5, 30, 15)
     proj_monthly = st.number_input("Monthly contribution ($)", 0, 50000, 1500, step=500)
-    show_directory = st.checkbox("Show stock directory", value=False)
-    show_attribution = st.checkbox("Show performance attribution (Brinson)", value=False)
     want_note = st.checkbox("Generate AI analyst note", value=False)
     want_advice = st.checkbox("Generate AI brief (quick)", value=False)
     st.markdown("---")
@@ -286,101 +284,99 @@ else:
     st.info("No price history available — check your data provider or try a shorter period.")
 
 # --- Stock directory ---
-if show_directory:
-    st.subheader("Stock directory — all tracked names")
+st.subheader("Stock directory — all tracked names")
 
-    @st.cache_data(ttl=3600, show_spinner=False)
-    def _fetch_directory(_provider, tickers_key: tuple) -> pd.DataFrame:
-        return build_directory(list(tickers_key), _provider)
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_directory(_provider, tickers_key: tuple) -> pd.DataFrame:
+    return build_directory(list(tickers_key), _provider)
 
-    with st.spinner("Fetching company profiles… (cached for 1 hour)"):
-        _dir_tickers = tuple(universe_tickers(portfolio.tickers))
-        _dir_df = _fetch_directory(provider, _dir_tickers)
+with st.spinner("Fetching company profiles… (cached for 1 hour)"):
+    _dir_tickers = tuple(universe_tickers(portfolio.tickers))
+    _dir_df = _fetch_directory(provider, _dir_tickers)
 
-    if not _dir_df.empty:
-        _layer_opts = ["All layers"] + sorted(_dir_df["Layer"].unique().tolist())
-        _layer_sel = st.selectbox("Filter by layer", _layer_opts, key="dir_layer")
-        _name_filter = st.text_input("Search name / ticker", key="dir_search").strip().lower()
+if not _dir_df.empty:
+    _layer_opts = ["All layers"] + sorted(_dir_df["Layer"].unique().tolist())
+    _layer_sel = st.selectbox("Filter by layer", _layer_opts, key="dir_layer")
+    _name_filter = st.text_input("Search name / ticker", key="dir_search").strip().lower()
 
-        _view = _dir_df.copy()
-        if _layer_sel != "All layers":
-            _view = _view[_view["Layer"] == _layer_sel]
-        if _name_filter:
-            _view = _view[
-                _view["Ticker"].str.lower().str.contains(_name_filter) |
-                _view["Name"].str.lower().str.contains(_name_filter)
-            ]
+    _view = _dir_df.copy()
+    if _layer_sel != "All layers":
+        _view = _view[_view["Layer"] == _layer_sel]
+    if _name_filter:
+        _view = _view[
+            _view["Ticker"].str.lower().str.contains(_name_filter) |
+            _view["Name"].str.lower().str.contains(_name_filter)
+        ]
 
-        st.dataframe(
-            _view,
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "Business": st.column_config.TextColumn("Business", width="large"),
-                "Upside": st.column_config.TextColumn("Upside", width="small"),
-            },
-        )
-        st.caption(
-            f"{len(_view)} of {len(_dir_df)} names shown. "
-            "Name, sector, business and analyst data from yfinance. "
-            "Target prices and consensus are analyst estimates — not recommendations."
-        )
+    st.dataframe(
+        _view,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Business": st.column_config.TextColumn("Business", width="large"),
+            "Upside": st.column_config.TextColumn("Upside", width="small"),
+        },
+    )
+    st.caption(
+        f"{len(_view)} of {len(_dir_df)} names shown. "
+        "Name, sector, business and analyst data from yfinance. "
+        "Target prices and consensus are analyst estimates — not recommendations."
+    )
 
 # --- Brinson attribution ---
-if show_attribution:
-    st.subheader("Performance attribution (Brinson-Fachler)")
-    with st.spinner("Computing attribution — fetching layer returns…"):
-        brinson = compute_brinson(portfolio, provider, period=period)
-    if brinson:
-        bx1, bx2, bx3, bx4 = st.columns(4)
-        bx1.metric(
-            "Portfolio return",
-            f"{brinson.portfolio_return * 100:.1f}%",
-            help=f"Weighted return of held positions ({period})",
-        )
-        bx2.metric(
-            "Benchmark (SPY)",
-            f"{brinson.benchmark_return * 100:.1f}%",
-        )
-        bx3.metric(
-            "Active return",
-            f"{brinson.total_active_return * 100:+.1f}%",
-            help="Portfolio − SPY, decomposed below",
-        )
-        bx4.metric(
-            "Allocation effect",
-            f"{brinson.allocation_effect * 100:+.2f}%",
-            help="Value added by over/underweighting thesis layers vs target",
-        )
-        by1, by2, by3, _ = st.columns(4)
-        by1.metric(
-            "Selection effect",
-            f"{brinson.selection_effect * 100:+.2f}%",
-            help="Value added by stock picks within each layer vs equal-weight layer",
-        )
-        by2.metric(
-            "Interaction effect",
-            f"{brinson.interaction_effect * 100:+.2f}%",
-            help="Joint allocation × selection effect",
-        )
+st.subheader("Performance attribution (Brinson-Fachler)")
+with st.spinner("Computing attribution — fetching layer returns…"):
+    brinson = compute_brinson(portfolio, provider, period=period)
+if brinson:
+    bx1, bx2, bx3, bx4 = st.columns(4)
+    bx1.metric(
+        "Portfolio return",
+        f"{brinson.portfolio_return * 100:.1f}%",
+        help=f"Weighted return of held positions ({period})",
+    )
+    bx2.metric(
+        "Benchmark (SPY)",
+        f"{brinson.benchmark_return * 100:.1f}%",
+    )
+    bx3.metric(
+        "Active return",
+        f"{brinson.total_active_return * 100:+.1f}%",
+        help="Portfolio − SPY, decomposed below",
+    )
+    bx4.metric(
+        "Allocation effect",
+        f"{brinson.allocation_effect * 100:+.2f}%",
+        help="Value added by over/underweighting thesis layers vs target",
+    )
+    by1, by2, by3, _ = st.columns(4)
+    by1.metric(
+        "Selection effect",
+        f"{brinson.selection_effect * 100:+.2f}%",
+        help="Value added by stock picks within each layer vs equal-weight layer",
+    )
+    by2.metric(
+        "Interaction effect",
+        f"{brinson.interaction_effect * 100:+.2f}%",
+        help="Joint allocation × selection effect",
+    )
 
-        detail = brinson.by_layer.copy()
-        pct_cols = [
-            "Port. weight", "Target weight", "Active weight",
-            "Port. layer rtn", "Bmk. layer rtn",
-            "Allocation", "Selection", "Interaction", "Total",
-        ]
-        for c in pct_cols:
-            detail[c] = (detail[c] * 100).round(2)
-        with st.expander("Attribution by layer"):
-            st.dataframe(detail, hide_index=True, width="stretch")
-        st.caption(
-            f"Benchmark allocation = thesis target weights; "
-            "layer benchmark = equal-weight of all 46 tracked names per layer. "
-            f"Period: {period}."
-        )
-    else:
-        st.info("Not enough history to compute attribution.")
+    detail = brinson.by_layer.copy()
+    pct_cols = [
+        "Port. weight", "Target weight", "Active weight",
+        "Port. layer rtn", "Bmk. layer rtn",
+        "Allocation", "Selection", "Interaction", "Total",
+    ]
+    for c in pct_cols:
+        detail[c] = (detail[c] * 100).round(2)
+    with st.expander("Attribution by layer"):
+        st.dataframe(detail, hide_index=True, width="stretch")
+    st.caption(
+        f"Benchmark allocation = thesis target weights; "
+        "layer benchmark = equal-weight of all 46 tracked names per layer. "
+        f"Period: {period}."
+    )
+else:
+    st.info("Not enough history to compute attribution.")
 
 # --- Alerts ---
 exp = analyze_exposure(portfolio)
