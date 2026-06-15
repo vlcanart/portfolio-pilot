@@ -1,4 +1,4 @@
-"""Institutional-grade risk metrics beyond Sharpe + max-drawdown.
+"""Institutional-grade risk metrics beyond Sharpe + max-drawdown. v2
 
 Adds Sortino, Calmar, Beta vs SPY, Information Ratio, Jensen's Alpha,
 rolling Sharpe (30/90/365d), historical VaR / CVaR, MTD return, and a

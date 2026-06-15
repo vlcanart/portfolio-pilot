@@ -189,7 +189,10 @@ if metrics:
     st.line_chart(series, height=240)
 
     # Institutional-grade extensions
-    adv = compute_advanced(series, provider, portfolio_value=portfolio.total_value)
+    try:
+        adv = compute_advanced(series, provider, portfolio_value=portfolio.total_value)
+    except TypeError:
+        adv = None  # old cached .pyc — user should reboot the Streamlit app
     if adv:
         st.markdown("**Advanced risk metrics**")
         a1, a2, a3, a4, a5 = st.columns(5)
