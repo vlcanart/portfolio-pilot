@@ -12,44 +12,56 @@ import pandas as pd
 
 from .portfolio import Portfolio
 
-# Which framework layer each ticker belongs to. Extend as holdings change.
+# Which framework layer each ticker belongs to. Extend as holdings/watchlist change.
 LAYER_MAP: dict[str, str] = {
-    # Compute & hardware
+    # Compute & hardware (incl. connectivity / optical)
     "NVDA": "Compute & Semis", "AVGO": "Compute & Semis", "TSM": "Compute & Semis",
-    "MRVL": "Compute & Semis", "MU": "Compute & Semis", "SMH": "Compute & Semis",
+    "MRVL": "Compute & Semis", "MU": "Compute & Semis", "AMD": "Compute & Semis",
+    "ALAB": "Compute & Semis", "CRDO": "Compute & Semis", "COHR": "Compute & Semis",
+    "LITE": "Compute & Semis", "DELL": "Compute & Semis", "SMH": "Compute & Semis",
     "GLW": "Compute & Semis",
     # Software & platforms
     "MSFT": "Software & Platforms", "GOOGL": "Software & Platforms",
     "GOOG": "Software & Platforms", "META": "Software & Platforms",
-    "AMZN": "Software & Platforms", "PLTR": "Software & Platforms",
-    "NOW": "Software & Platforms", "CRM": "Software & Platforms",
+    "AMZN": "Software & Platforms", "ORCL": "Software & Platforms",
+    "PLTR": "Software & Platforms", "NOW": "Software & Platforms",
+    "CRM": "Software & Platforms", "SNOW": "Software & Platforms",
+    "NET": "Software & Platforms", "CRWD": "Software & Platforms",
+    "PANW": "Software & Platforms",
     # AI power & infrastructure
     "CEG": "AI Power & Infra", "VST": "AI Power & Infra", "GEV": "AI Power & Infra",
-    "VRT": "AI Power & Infra", "ANET": "AI Power & Infra", "CCJ": "AI Power & Infra",
-    "ICLN": "AI Power & Infra",
-    # Robotics
-    "TSLA": "Robotics", "SYM": "Robotics", "TER": "Robotics",
+    "VRT": "AI Power & Infra", "ANET": "AI Power & Infra", "ETN": "AI Power & Infra",
+    "CCJ": "AI Power & Infra", "ICLN": "AI Power & Infra",
+    # Robotics & automation
+    "TSLA": "Robotics", "SYM": "Robotics", "TER": "Robotics", "ISRG": "Robotics",
     # Materials & critical minerals
     "COPX": "Materials & Critical Minerals", "GNR": "Materials & Critical Minerals",
-    "MP": "Materials & Critical Minerals",
+    "MP": "Materials & Critical Minerals", "ALB": "Materials & Critical Minerals",
+    # Frontier / quantum (speculative: quantum + small-modular nuclear)
+    "IONQ": "Frontier / Quantum", "RGTI": "Frontier / Quantum",
+    "OKLO": "Frontier / Quantum", "SMR": "Frontier / Quantum",
+    # Crypto & digital assets
+    "BTC": "Crypto", "COIN": "Crypto", "IBIT": "Crypto",
     # Precious-metals hedge
     "GLD": "Precious Metals (hedge)", "PHYS": "Precious Metals (hedge)",
     "PSLV": "Precious Metals (hedge)",
     # Other buckets
-    "VEA": "Diversified / Intl", "BTC": "Crypto", "CASH": "Cash",
+    "VEA": "Diversified / Intl", "CASH": "Cash",
 }
 
-# Illustrative thesis-aligned target weights by layer (editable). Sums to ~1.0.
-# Reflects a growth-tilted 'own your thesis' stance with a modest real-asset/hedge sleeve.
+# Illustrative thesis-aligned target weights by layer (editable). Sums to 1.0.
+# Growth-tilted 'own your thesis' stance: a small speculative Frontier sleeve, a modest
+# crypto allocation, and a reduced real-asset / metals hedge.
 TARGET_LAYER_WEIGHTS: dict[str, float] = {
-    "Compute & Semis": 0.25,
-    "Software & Platforms": 0.22,
-    "AI Power & Infra": 0.15,
-    "Robotics": 0.12,
-    "Materials & Critical Minerals": 0.12,
+    "Compute & Semis": 0.22,
+    "Software & Platforms": 0.20,
+    "AI Power & Infra": 0.16,
+    "Robotics": 0.10,
+    "Materials & Critical Minerals": 0.10,
+    "Frontier / Quantum": 0.05,
     "Precious Metals (hedge)": 0.08,
-    "Diversified / Intl": 0.03,
-    "Crypto": 0.01,
+    "Diversified / Intl": 0.04,
+    "Crypto": 0.03,
     "Cash": 0.02,
 }
 

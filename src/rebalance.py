@@ -19,6 +19,8 @@ NEW_CANDIDATES: dict[str, list[str]] = {
     "Compute & Semis": ["SMH", "TSM", "AVGO"],
     "Software & Platforms": ["MSFT", "GOOGL"],
     "AI Power & Infra": ["CEG", "VST", "VRT"],
+    "Frontier / Quantum": ["IONQ", "OKLO"],
+    "Crypto": ["COIN"],
 }
 
 

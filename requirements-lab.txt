@@ -1,0 +1,7 @@
+# Heavy RL dependencies for the Strategy Lab ONLY. Kept separate from requirements.txt
+# so the Streamlit Cloud deploy (the dashboard) never installs torch.
+#   python -m pip install -r requirements-lab.txt
+#   python -m strategy_lab.run
+stable-baselines3>=2.3
+gymnasium>=0.29
+torch>=2.2

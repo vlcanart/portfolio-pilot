@@ -4,24 +4,44 @@ AVGO,Broadcom,Compute & Semis,Custom ASIC & networking
 TSM,Taiwan Semiconductor,Compute & Semis,Foundry monopoly
 MRVL,Marvell,Compute & Semis,Custom silicon
 MU,Micron,Compute & Semis,High-bandwidth memory (HBM)
+AMD,Advanced Micro Devices,Compute & Semis,Secondary compute / MI accelerators
+ALAB,Astera Labs,Compute & Semis,PCIe Gen6 connectivity
+CRDO,Credo,Compute & Semis,Low-power connectivity
+COHR,Coherent,Compute & Semis,Optical / lasers
+LITE,Lumentum,Compute & Semis,Optical transceivers
+DELL,Dell,Compute & Semis,Enterprise inference hardware
 SMH,VanEck Semiconductor ETF,Compute & Semis,Semis ballast ETF
 GLW,Corning,Compute & Semis,Optical / glass substrates (HELD)
 MSFT,Microsoft,Software & Platforms,Enterprise agent cloud
 GOOGL,Alphabet,Software & Platforms,Sovereign agent & cloud
 META,Meta Platforms,Software & Platforms,Open-source AI utility
 AMZN,Amazon,Software & Platforms,AWS infrastructure
+ORCL,Oracle,Software & Platforms,Autonomous DB / OCI
 PLTR,Palantir,Software & Platforms,Agentic operating system
-NOW,ServiceNow,Software & Platforms,B2B automation
+NOW,ServiceNow,Software & Platforms,Workflow automation
 CRM,Salesforce,Software & Platforms,System of record / Agentforce
+SNOW,Snowflake,Software & Platforms,Data cloud / Cortex AI
+NET,Cloudflare,Software & Platforms,Edge inference
+CRWD,CrowdStrike,Software & Platforms,Security / Charlotte AI
+PANW,Palo Alto Networks,Software & Platforms,Network security / Precision AI
 CEG,Constellation Energy,AI Power & Infra,Nuclear power pure-play
 VST,Vistra,AI Power & Infra,Independent power producer
-GEV,GE Vernova,AI Power & Infra,Grid & gas turbine monopoly
+GEV,GE Vernova,AI Power & Infra,Grid & gas turbine
 VRT,Vertiv,AI Power & Infra,Liquid cooling / datacenter infra
 ANET,Arista Networks,AI Power & Infra,Datacenter switching
+ETN,Eaton,AI Power & Infra,Electrical infrastructure
 CCJ,Cameco,AI Power & Infra,Uranium fuel cycle
 TSLA,Tesla,Robotics,Humanoid (Optimus) (HELD)
 SYM,Symbotic,Robotics,Warehouse AI fleets
 TER,Teradyne,Robotics,Cobots / automation
+ISRG,Intuitive Surgical,Robotics,Surgical robotics
 COPX,Global X Copper Miners,Materials & Critical Minerals,Copper for AI power buildout (HELD)
 GNR,SPDR Natural Resources,Materials & Critical Minerals,Broad natural resources (HELD)
 MP,MP Materials,Materials & Critical Minerals,Rare earth magnets
+ALB,Albemarle,Materials & Critical Minerals,Lithium
+IONQ,IonQ,Frontier / Quantum,Trapped-ion quantum
+RGTI,Rigetti,Frontier / Quantum,Superconducting quantum
+OKLO,Oklo,Frontier / Quantum,Small modular nuclear
+SMR,NuScale Power,Frontier / Quantum,Small modular reactors
+COIN,Coinbase,Crypto,Crypto exchange / settlement
+IBIT,iShares Bitcoin ETF,Crypto,Spot bitcoin ETF
