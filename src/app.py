@@ -37,6 +37,7 @@ if _api_key:
     os.environ["ANTHROPIC_API_KEY"] = _api_key
 
 from src.advisor import build_briefing_payload, generate_briefing  # noqa: E402
+from src.alerts import check_alerts                                 # noqa: E402
 from src.analytics import compute_metrics, portfolio_value_series   # noqa: E402
 from src.config import settings                                     # noqa: E402
 from src.data_provider import get_default_provider                  # noqa: E402
@@ -150,8 +151,18 @@ if metrics:
     m5.metric("Max drawdown", f"{metrics.max_drawdown * 100:.1f}%")
     st.line_chart(series, height=240)
 
-# --- Exposure / thesis gap ---
+# --- Alerts ---
 exp = analyze_exposure(portfolio)
+_alert_hist = provider.history(portfolio.tickers, period=period)
+alerts = check_alerts(portfolio, exposure=exp, value_series=series,
+                      holdings_history=_alert_hist)
+if alerts:
+    st.subheader("Alerts")
+    _render = {"HIGH": st.error, "WARN": st.warning, "INFO": st.info}
+    for a in alerts:
+        _render[a.severity](f"**{a.severity}** · {a.category} — {a.message}")
+
+# --- Exposure / thesis gap ---
 st.subheader("Theme exposure vs thesis target")
 if exp.concentration_flag:
     t, w = exp.top_position

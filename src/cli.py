@@ -10,6 +10,7 @@ import argparse
 import sys
 
 from .advisor import build_briefing_payload, generate_briefing
+from .alerts import check_alerts
 from .analytics import compute_metrics, portfolio_value_series
 from .config import settings
 from .data_provider import get_default_provider
@@ -94,8 +95,17 @@ def main() -> None:
         print(f"Sharpe (rf={settings.risk_free_rate:.1%}):    {metrics.sharpe:.2f}")
         print(f"Max drawdown:        {_fmt_pct(metrics.max_drawdown)}")
 
-    # --- Exposure / thesis gap ---
+    # --- Alerts (monitoring headline) ---
     exp = analyze_exposure(portfolio)
+    holdings_hist = provider.history(portfolio.tickers, period=args.period)
+    alerts = check_alerts(portfolio, exposure=exp, value_series=series,
+                          holdings_history=holdings_hist)
+    if alerts:
+        print(f"\n{'=' * 56}\nALERTS\n{'=' * 56}")
+        for a in alerts:
+            print(f"[{a.severity:<4}] {a.category:<13} {a.message}")
+
+    # --- Exposure / thesis gap ---
     print(f"\n{'=' * 56}\nTHEME EXPOSURE vs THESIS TARGET\n{'=' * 56}")
     print(f"{'Layer':<32}{'Current':>9}{'Target':>9}{'Gap':>8}")
     for layer, r in exp.by_layer.iterrows():
