@@ -18,7 +18,7 @@ $log = Join-Path $notesDir "note_$stamp.txt"
 # UTF-8 so the note/symbols render in the log file.
 $env:PYTHONIOENCODING = "utf-8"
 
-& $python -m src.cli --holdings $holdings --snapshot --note *>&1 |
+& $python -m src.cli --holdings $holdings --snapshot --email *>&1 |
     Tee-Object -FilePath $log
 
 Write-Output "Wrote $log"

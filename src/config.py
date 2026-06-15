@@ -31,5 +31,13 @@ class Settings:
     advisor_model: str = "claude-opus-4-8"
     advisor_effort: str = "high"
 
+    # Email delivery (Gmail SMTP by default). SMTP_PASS = a Gmail App Password.
+    email_to: str | None = os.getenv("EMAIL_TO") or None
+    email_from: str | None = os.getenv("EMAIL_FROM") or os.getenv("SMTP_USER") or None
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "465"))
+    smtp_user: str | None = os.getenv("SMTP_USER") or None
+    smtp_pass: str | None = os.getenv("SMTP_PASS") or None
+
 
 settings = Settings()

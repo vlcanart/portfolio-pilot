@@ -75,6 +75,14 @@ def main() -> None:
         "--note", action="store_true",
         help="Generate the recurring AI analyst note (needs ANTHROPIC_API_KEY)",
     )
+    parser.add_argument(
+        "--email", action="store_true",
+        help="Email the daily digest (charts + note) via SMTP (needs SMTP creds)",
+    )
+    parser.add_argument(
+        "--email-preview", action="store_true",
+        help="Write the digest to a local HTML file instead of sending",
+    )
     args = parser.parse_args()
 
     provider = get_default_provider()
@@ -191,17 +199,38 @@ def main() -> None:
               "(rf + ERP x vol/market_vol); vol from 2y history. Gaussian model understates "
               "single-name tail risk, so it flatters concentration. Illustrative, not a forecast.")
 
-    # --- AI analyst note ---
-    if args.note:
+    # --- AI analyst note (also used by the email digest) ---
+    note_text = None
+    if args.note or args.email or args.email_preview:
         if sc is None:
             sc = screen(provider, load_watchlist(), held=set(portfolio.tickers))
         payload = build_note_payload(portfolio, metrics, exp, alerts,
                                      watchlist_screen=sc, change=latest_change())
-        print(f"\n{'=' * 56}\nAI ANALYST NOTE\n{'=' * 56}")
         try:
-            print(generate_note(payload))
+            note_text = generate_note(payload)
         except RuntimeError as e:
-            print(f"(skipped) {e}")
+            print(f"(note skipped) {e}")
+        if args.note and note_text:
+            print(f"\n{'=' * 56}\nAI ANALYST NOTE\n{'=' * 56}")
+            print(note_text)
+
+    # --- Email digest ---
+    if args.email or args.email_preview:
+        import datetime as _dt
+        from .emailer import compose_digest, render_preview, send_digest
+        subject, html, charts = compose_digest(
+            portfolio, metrics, exp, alerts, sc, load_history(), note_text,
+            date_str=_dt.date.today().isoformat(),
+        )
+        if args.email_preview:
+            path = render_preview(html, charts, "notes/digest_preview.html")
+            print(f"\nDigest preview written: {path}")
+        if args.email:
+            try:
+                send_digest(subject, html, charts)
+                print(f"\nEmailed digest to {settings.email_to}")
+            except Exception as e:
+                print(f"\n(email failed) {e}")
 
     # --- Advise (Claude) ---
     if args.advise:
