@@ -319,11 +319,14 @@ if metrics:
 *All metrics use the portfolio's daily value series derived from your holdings × live prices. Risk-free rate is configurable in settings (default 5%). Past metrics do not predict future performance.*
 """)  # noqa: E501
 
+# Compute optimizer target early — needed by both the performance chart and Recommend section.
+target = optimize(portfolio.tickers, provider, objective=objective, max_weight=max_weight)
+
 # --- Historical performance chart ---
 st.subheader("Historical performance — all tracked names")
 _perf_col1, _perf_col2, _perf_col3 = st.columns([2, 2, 4])
 with _perf_col1:
-    perf_period = st.selectbox("Period", ["1y", "2y", "3y", "5y"], index=3,
+    perf_period = st.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "3y", "5y"], index=3,
                                key="perf_period")
 with _perf_col2:
     perf_gran = st.radio("Granularity", ["daily", "monthly", "yearly"],
@@ -365,6 +368,51 @@ if not _norm.empty:
             st.dataframe(_ranked, hide_index=True, width="stretch")
 else:
     st.info("No price history available — check your data provider or try a shorter period.")
+
+# --- Rebalanced portfolio performance chart ---
+if target:
+    _rb_tickers = [t for t, w in target.weights.items() if w > 0.001 and t != "CASH"]
+    if _rb_tickers:
+        st.subheader("Historical performance — rebalanced portfolio")
+        _rb_col1, _rb_col2, _rb_col3 = st.columns([2, 2, 4])
+        with _rb_col1:
+            rb_period = st.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "3y", "5y"],
+                                     index=3, key="rb_period")
+        with _rb_col2:
+            rb_gran = st.radio("Granularity", ["daily", "monthly", "yearly"],
+                               index=1, horizontal=True, key="rb_gran")
+        with _rb_col3:
+            rb_benchmark = st.checkbox("Show SPY benchmark", value=True, key="rb_spy")
+
+        with st.spinner("Loading rebalanced portfolio history…"):
+            _rb_bench = "SPY" if rb_benchmark else None
+            _rb_norm = normalized_history(provider, _rb_tickers, period=rb_period,
+                                          granularity=rb_gran, benchmark=_rb_bench)
+
+        if not _rb_norm.empty:
+            _rb_all = sorted(_rb_norm.columns.tolist())
+            _rb_default = _rb_tickers + (["SPY"] if rb_benchmark and "SPY" in _rb_norm.columns else [])
+            _rb_default = [t for t in _rb_default if t in _rb_norm.columns]
+            _rb_sel = st.multiselect(
+                "Filter names (leave blank = show all)",
+                options=_rb_all,
+                default=_rb_default,
+                key="rb_sel",
+            )
+            _rb_chart_df = _rb_norm[_rb_sel] if _rb_sel else _rb_norm
+            st.line_chart(_rb_chart_df, height=380)
+            st.caption(
+                f"Normalized to 100 at first data point. {rb_gran.capitalize()} closes, "
+                f"{rb_period} window. Tickers weighted by the {target.objective} optimizer."
+            )
+            _rb_ranked = rank_by_total_return(_rb_norm[_rb_sel] if _rb_sel else _rb_norm)
+            if not _rb_ranked.empty:
+                _rb_ranked["total_return"] = (_rb_ranked["total_return"] * 100).round(1)
+                _rb_ranked.columns = ["Ticker", "Total return (%)"]
+                with st.expander("Return ranking over selected window"):
+                    st.dataframe(_rb_ranked, hide_index=True, width="stretch")
+        else:
+            st.info("No history available for rebalanced tickers — try a shorter period.")
 
 # --- Stock directory ---
 st.subheader("Stock directory — all tracked names")
@@ -519,7 +567,6 @@ if not od.empty:
     )
 
 # --- Recommend ---
-target = optimize(portfolio.tickers, provider, objective=objective, max_weight=max_weight)
 if target:
     st.subheader(f"Target allocation ({target.objective})")
     comp = pd.DataFrame(
