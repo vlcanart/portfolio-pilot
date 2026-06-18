@@ -35,10 +35,18 @@ def _resample(prices: pd.DataFrame, granularity: str) -> pd.DataFrame:
     if granularity == "daily":
         return prices
     if granularity == "monthly":
-        return prices.resample("ME").last()    # month-end
-    if granularity == "yearly":
-        return prices.resample("YE").last()    # year-end
-    raise ValueError(f"granularity must be daily|monthly|yearly, got {granularity!r}")
+        resampled = prices.resample("ME").last()
+    elif granularity == "yearly":
+        resampled = prices.resample("YE").last()
+    else:
+        raise ValueError(f"granularity must be daily|monthly|yearly, got {granularity!r}")
+
+    # Always anchor the chart to today: append the latest daily row if it falls
+    # after the last period-end (i.e. we're mid-month or mid-year).
+    latest = prices.iloc[[-1]]
+    if resampled.empty or latest.index[0] > resampled.index[-1]:
+        resampled = pd.concat([resampled, latest])
+    return resampled
 
 
 def normalized_history(
