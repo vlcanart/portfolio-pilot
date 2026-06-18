@@ -54,6 +54,7 @@ from src.optimizer import optimize                                  # noqa: E402
 from src.portfolio import build_portfolio, load_holdings            # noqa: E402
 from src.projections import compare as project_compare             # noqa: E402
 from src.rebalance import plan_rebalance, resulting_weights, summarize  # noqa: E402
+from src.market_pulse import daily_market_snapshot, recent_news     # noqa: E402
 from src.watchlist import load_watchlist, screen                    # noqa: E402
 
 st.set_page_config(page_title="Portfolio Pilot", layout="wide")
@@ -132,6 +133,70 @@ portfolio = build_portfolio(holdings, provider)
 if not portfolio.positions:
     st.error("No priceable positions found. Check your tickers.")
     st.stop()
+
+# --- Market Pulse ---
+st.subheader("Market pulse — last 24h")
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _fetch_snapshot():
+    return daily_market_snapshot()
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_news(_tickers_key: tuple) -> list:
+    return recent_news(list(_tickers_key))
+
+with st.spinner("Fetching market conditions…"):
+    _snap = _fetch_snapshot()
+
+# Row 1 — major indices + VIX
+_vix_level, _vix_chg = _snap["vix"]
+_idx_items = list(_snap["indices"].items())
+_pulse_cols = st.columns(len(_idx_items) + 1)
+for _col, (_name, _chg) in zip(_pulse_cols, _idx_items):
+    if _chg is not None:
+        _col.metric(_name, f"{_chg * 100:+.2f}%", delta=f"{_chg * 100:+.2f}%")
+    else:
+        _col.metric(_name, "—")
+# VIX: show level + change; high VIX = fear, so inverse color
+if _vix_level is not None:
+    _vix_delta_str = f"{_vix_chg * 100:+.2f}%" if _vix_chg is not None else None
+    _pulse_cols[-1].metric("VIX (Fear)", f"{_vix_level:.1f}",
+                           delta=_vix_delta_str, delta_color="inverse")
+else:
+    _pulse_cols[-1].metric("VIX (Fear)", "—")
+
+# Row 2 — sector heatmap (bar chart)
+_sec_df = pd.DataFrame(
+    [{"Sector": k, "Change %": round(v * 100, 2)} for k, v in _snap["sectors"].items()
+     if v is not None]
+).sort_values("Change %", ascending=False)
+if not _sec_df.empty:
+    st.bar_chart(_sec_df.set_index("Sector")["Change %"], height=200)
+
+# Row 3 — macro (bonds, gold, oil, dollar)
+_mac_cols = st.columns(len(_snap["macro"]))
+for _col, (_name, _chg) in zip(_mac_cols, _snap["macro"].items()):
+    if _chg is not None:
+        _col.metric(_name, f"{_chg * 100:+.2f}%", delta=f"{_chg * 100:+.2f}%")
+    else:
+        _col.metric(_name, "—")
+
+# Row 4 — news for held positions
+with st.expander("📰 News — your holdings (last 24h)"):
+    _held = tuple(t for t in portfolio.tickers if t != "CASH")
+    _news = _fetch_news(_held)
+    if _news:
+        for _article in _news:
+            _ts = pd.Timestamp(_article["time"], unit="s").strftime("%b %d  %H:%M UTC")
+            st.markdown(
+                f"**[{_article['title']}]({_article['link']})**  \n"
+                f"{_article['publisher']} · `{_article['ticker']}` · {_ts}"
+            )
+            st.divider()
+    else:
+        st.info("No recent news found for your holdings.")
+
+st.caption("Prices refresh every 15 min · News refreshes every 30 min · All % changes vs prior close.")
 
 # --- Track ---
 c1, c2, c3 = st.columns(3)
